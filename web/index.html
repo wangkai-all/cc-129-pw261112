@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>工单主题观察台</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <div>
+      <h1>工单主题观察台</h1>
+      <p class="subtitle">本地文本向量与聚类 · 去重后看趋势 · 人工可修正</p>
+    </div>
+  </div>
+  <div class="top-actions">
+    <button class="btn ghost" id="btn-reload">重新载入</button>
+    <button class="btn primary" id="btn-retrain">重新训练</button>
+    <button class="icon-btn" id="btn-theme" title="切换明暗" aria-label="切换明暗主题">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="视图">
+  <button class="tab active" data-tab="topics" role="tab" aria-selected="true">主题总览</button>
+  <button class="tab" data-tab="pending" role="tab" aria-selected="false">待整理区 <span class="tab-count" id="pending-count">0</span></button>
+  <button class="tab" data-tab="batches" role="tab" aria-selected="false">批次与训练</button>
+  <button class="tab" data-tab="rules" role="tab" aria-selected="false">清理规则</button>
+  <button class="tab" data-tab="history" role="tab" aria-selected="false">历史与回看</button>
+</nav>
+
+<main class="wrap">
+  <section class="panel active" id="panel-topics" role="tabpanel">
+    <div class="stat-row" id="stat-row"></div>
+
+    <section class="card chart-card" aria-labelledby="trend-title">
+      <div class="card-head">
+        <div>
+          <h2 id="trend-title">每月工单量</h2>
+          <p class="hint">按去重后的首次投递计数；重复转发单独标注，不计入趋势。</p>
+        </div>
+        <div class="seg" role="group" aria-label="图表视图">
+          <button class="seg-btn active" data-view="chart">图表</button>
+          <button class="seg-btn" data-view="table">表格</button>
+        </div>
+      </div>
+      <div id="overall-chart" class="chart-host"></div>
+      <div id="overall-table" class="table-host" hidden></div>
+      <p class="footnote" id="dup-note"></p>
+    </section>
+
+    <div class="section-head">
+      <h2>主题</h2>
+      <p class="hint">主题名可改；关键词只是归类线索，不是原文断言。点开可看归并原因与代表工单。</p>
+    </div>
+    <div class="topic-grid" id="topic-grid"></div>
+  </section>
+
+  <section class="panel" id="panel-pending" role="tabpanel">
+    <div class="section-head">
+      <h2>待整理区</h2>
+      <p class="hint">短文本、空文本、离群与低相似度记录单列在这里，不强行塞进主题。</p>
+    </div>
+    <div class="pending-actions">
+      <label class="inline-field">
+        <span>按类型</span>
+        <select id="pending-filter"><option value="">全部</option></select>
+      </label>
+      <span class="muted" id="pending-summary"></span>
+    </div>
+    <div id="pending-groups"></div>
+  </section>
+
+  <section class="panel" id="panel-batches" role="tabpanel">
+    <div class="section-head">
+      <h2>批次与训练</h2>
+      <p class="hint">新批次先按已确认主题匹配；重新训练后按质心相似度展示新旧主题对应，簇编号相同不代表同一主题。</p>
+    </div>
+    <div class="two-col">
+      <section class="card" aria-labelledby="batch-title">
+        <div class="card-head">
+          <div><h2 id="batch-title">批次导入</h2></div>
+          <button class="btn small ghost" id="btn-reset-demo" type="button">重置为演示数据</button>
+        </div>
+        <p class="hint">导入演示批次时，默认执行“匹配已确认主题”，低相似度记录进入待整理区。</p>
+        <div id="batch-list" class="batch-list"></div>
+      </section>
+      <section class="card" aria-labelledby="mapping-title">
+        <div class="card-head"><h2 id="mapping-title">最近一次训练的新旧对应</h2></div>
+        <div id="mapping-list" class="mapping-list"></div>
+      </section>
+    </div>
+    <section class="card" aria-labelledby="runs-title">
+      <div class="card-head"><h2 id="runs-title">运行记录</h2></div>
+      <div id="runs-list" class="runs-list"></div>
+    </section>
+    <section class="card" id="retrain-card" aria-labelledby="retrain-title" hidden>
+      <div class="card-head">
+        <div>
+          <h2 id="retrain-title">重新训练前后对照</h2>
+          <p class="hint">按主题统计工单量；两次快照都保存在「历史与回看」里。</p>
+        </div>
+      </div>
+      <div id="retrain-comparison"></div>
+    </section>
+  </section>
+
+  <section class="panel" id="panel-rules" role="tabpanel">
+    <div class="section-head">
+      <h2>清理规则</h2>
+      <p class="hint">规则可调；保存后按当前全部工单重新清理。默认同时重训，并在历史里留下修改前后快照。</p>
+    </div>
+    <div class="two-col">
+      <section class="card" aria-labelledby="rules-title">
+        <div class="card-head"><h2 id="rules-title">文本清理</h2></div>
+        <form id="rules-form" class="form-grid"></form>
+        <div class="form-actions">
+          <label class="check"><input type="checkbox" id="rules-retrain" checked /> 保存后立即重新训练</label>
+          <button class="btn primary" id="btn-save-rules" type="button">保存规则</button>
+        </div>
+      </section>
+      <section class="card" aria-labelledby="threshold-title">
+        <div class="card-head"><h2 id="threshold-title">匹配阈值</h2></div>
+        <form id="settings-form" class="form-grid"></form>
+        <div class="form-actions">
+          <button class="btn" id="btn-save-settings" type="button">保存阈值</button>
+        </div>
+        <div id="rule-comparison"></div>
+      </section>
+    </div>
+    <section class="card" aria-labelledby="sample-title">
+      <div class="card-head">
+        <div>
+          <h2 id="sample-title">清理前后对照</h2>
+          <p class="hint">抽一条含引用回复与签名的工单，逐段标出保留与剔除原因。</p>
+        </div>
+        <label class="inline-field">
+          <span>工单</span>
+          <select id="sample-select"></select>
+        </label>
+      </div>
+      <div id="sample-compare" class="sample-compare"></div>
+    </section>
+  </section>
+
+  <section class="panel" id="panel-history" role="tabpanel">
+    <div class="section-head">
+      <h2>历史与回看</h2>
+      <p class="hint">每次改名、合并、移动、规则调整与训练都会留下快照；修改前的归类仍可查看。</p>
+    </div>
+    <div class="two-col history-cols">
+      <section class="card" aria-labelledby="versions-title">
+        <div class="card-head"><h2 id="versions-title">版本快照</h2></div>
+        <div id="version-list" class="version-list"></div>
+      </section>
+      <section class="card" aria-labelledby="audit-title">
+        <div class="card-head"><h2 id="audit-title">操作记录</h2></div>
+        <div id="audit-list" class="audit-list"></div>
+      </section>
+    </div>
+    <section class="card" id="version-view" hidden aria-live="polite"></section>
+  </section>
+</main>
+
+<div class="dialog-backdrop" id="dialog-backdrop" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+    <button class="dialog-close" id="dialog-close" aria-label="关闭">×</button>
+    <div id="dialog-body"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="/app.js" type="module"></script>
+</body>
+</html>
